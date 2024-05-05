@@ -7,6 +7,14 @@ __all__ = ["gen_reach_avoid", "gen_mutated_sequential_reach_avoid"]
 
 
 def gen_reach_avoid(n_tokens, max_size=6, prob_stutter=0.9):
+    """Generator for random reach avoid dfas.
+
+    - n_tokens: Alphabet size.
+    - max_size: The maximum number of states of the DFA.
+    - prob_stutter: The probability a token will not transition to the next
+      state.
+    """
+
     assert n_tokens > 1
 
     n = random.randint(3, max_size)
@@ -53,8 +61,14 @@ def accepting_is_sink(d: DFA):
                transition=transition)
 
 
-def gen_mutated_sequential_reach_avoid(n_tokens=12, max_mutations=5):
-    dfas = gen_reach_avoid(n_tokens)
+def gen_mutated_sequential_reach_avoid(n_tokens=12, max_mutations=5, **kwargs):
+    """Generator for random reach avoid dfas.
+
+    - n_tokens: Alphabet size.
+    - max_mutations: The maximum number of states of the DFA.
+    - kwargs: See `gen_reach_avoid`.
+    """
+    dfas = gen_reach_avoid(n_tokens, **kwargs)
     while True:
         candidate = next(dfas)
         for _ in range(random.randint(0, max_mutations)):
