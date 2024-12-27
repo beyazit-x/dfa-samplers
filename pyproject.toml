@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "dfa-sampler"
+name = "dfa-samplers"
 version = "0.1.1"
 description = "Library for implementing dfa sampling strategies (pull requests welcome)."
 authors = ["Marcell Vazquez-Chanlatte <mvc@linux.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [
-    { include = "dfa_sampler" },
+    { include = "dfa_samplers" },
 ]
 
 [tool.poetry.dependencies]
