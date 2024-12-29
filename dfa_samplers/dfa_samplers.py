@@ -1,39 +1,58 @@
+import math
 import random
 from dfa import dict2dfa, DFA
 from dfa_mutate import change_transition
 
+__all__ = ["DFASampler", "ReachSampler", "ReachAvoidSampler", "RADSampler"]
 
-__all__ = ["gen_reach", "gen_reach_avoid", "gen_rad"]
+class DFASampler():
+    def __init__(self, n_tokens=10, max_size=6):
+        assert n_tokens > 1 and max_size > 1
+        self.n_tokens = n_tokens
+        self.max_size = max_size
 
+    def sample(self):
+        dfa = self._sample()
+        while dfa.find_word() is None:
+            dfa = self._sample()
+        return dfa
 
-def gen_reach(n_tokens=10, max_size=6, prob_stutter=0.9):
-    """Generator for random reach avoid dfas.
+    def _sample(self):
+        raise NotImplemented
 
-    - n_tokens: Alphabet size.
-    - max_size: The maximum number of states of the DFA.
-    - prob_stutter: The probability a token will not transition to the next
-      state.
-    """
+    def get_size_bound(self):
+        Q = self.max_size
+        F = 1 # Assumption!
+        E = self.n_tokens
+        m = Q * E # Assuming worst case
+        if F > Q / 2: F = Q - F
+        b_Q = math.ceil(math.log(Q, 2))
+        b_E = math.ceil(math.log(E, 2))
+        bin_size = math.ceil(3 + 2*b_Q + 2*b_E + (F + 1)*b_Q + m*(b_E + 2*b_Q))
+        return len(str(2**bin_size - 1))
 
-    assert n_tokens > 1
+class ReachSampler(DFASampler):
+    def __init__(self, prob_stutter=0.9, **kwargs):
+        super().__init__(**kwargs)
+        assert prob_stutter >= 0 and prob_stutter <= 1
+        self.prob_stutter = prob_stutter
 
-    tokens = list(range(n_tokens))
-    while True:
-        n = random.randint(3, max_size)
+    def _sample(self):
+        tokens = list(range(self.n_tokens))
+        n = random.randint(3, self.max_size)
         success = n - 1
         transitions = {
-          success: (True,  {t: success for t in range(n_tokens)})
+          success: (True,  {t: success for t in range(self.n_tokens)})
         }
         for state in range(n - 1):
             noop, good = (set(), set())
             random.shuffle(tokens)
             good.add(tokens[0])
             for token in tokens[1:]:
-                if random.random() <= prob_stutter:
+                if random.random() <= self.prob_stutter:
                     noop.add(token)
                 else:
                     good.add(token)
-
             _transitions = dict()
             for token in good:
                 _transitions[token] = state + 1
@@ -41,28 +60,21 @@ def gen_reach(n_tokens=10, max_size=6, prob_stutter=0.9):
                 _transitions[token] = state
 
             transitions[state] = (False, _transitions)
+        return dict2dfa(transitions, start=0).minimize()
 
-        yield dict2dfa(transitions, start=0).minimize()
+class ReachAvoidSampler(DFASampler):
+    def __init__(self, prob_stutter=0.9, **kwargs):
+        super().__init__(**kwargs)
+        assert prob_stutter >= 0 and prob_stutter <= 1
+        self.prob_stutter = prob_stutter
 
-
-def gen_reach_avoid(n_tokens=10, max_size=6, prob_stutter=0.9):
-    """Generator for random reach avoid dfas.
-
-    - n_tokens: Alphabet size.
-    - max_size: The maximum number of states of the DFA.
-    - prob_stutter: The probability a token will not transition to the next
-      state.
-    """
-
-    assert n_tokens > 1
-
-    tokens = list(range(n_tokens))
-    while True:
-        n = random.randint(3, max_size)
+    def _sample(self):
+        tokens = list(range(self.n_tokens))
+        n = random.randint(3, self.max_size)
         success, fail = n - 2, n - 1
         transitions = {
-          success: (True,  {t: success for t in range(n_tokens)}),
-          fail:    (False, {t: fail    for t in range(n_tokens)}),
+          success: (True,  {t: success for t in range(self.n_tokens)}),
+          fail:    (False, {t: fail    for t in range(self.n_tokens)}),
         }
         for state in range(n - 2):
             noop, good, bad = partition = (set(), set(), set())
@@ -70,11 +82,10 @@ def gen_reach_avoid(n_tokens=10, max_size=6, prob_stutter=0.9):
             good.add(tokens[0])
             bad.add(tokens[1])
             for token in tokens[2:]:
-                if random.random() <= prob_stutter:
+                if random.random() <= self.prob_stutter:
                     noop.add(token)
                 else:
                     partition[random.randint(1, 2)].add(token)
-
             _transitions = dict()
             for token in good:
                 _transitions[token] = state + 1
@@ -82,38 +93,33 @@ def gen_reach_avoid(n_tokens=10, max_size=6, prob_stutter=0.9):
                 _transitions[token] = fail
             for token in noop:
                 _transitions[token] = state
-
             transitions[state] = (False, _transitions)
+        return dict2dfa(transitions, start=0).minimize()
 
-        yield dict2dfa(transitions, start=0).minimize()
+class RADSampler(DFASampler):
+    def __init__(self, max_mutations=5, **kwargs):
+        super().__init__(**kwargs)
+        assert max_mutations >= 0
+        self.max_mutations = max_mutations
+        self.reach_avoid_sampler = ReachAvoidSampler(**kwargs)
 
+    def _accepting_is_sink(self, d):
+        def transition(s, c):
+            if d._label(s) is True:
+                return s
+            return d._transition(s, c)
+        return DFA(start=d.start,
+                   inputs=d.inputs,
+                   label=d._label,
+                   transition=transition)
 
-def accepting_is_sink(d: DFA):
-    def transition(s, c):
-        if d._label(s) is True:
-            return s
-        return d._transition(s, c)
-    return DFA(start=d.start,
-               inputs=d.inputs,
-               label=d._label,
-               transition=transition)
-
-
-def gen_rad(n_tokens=10, max_mutations=5, **kwargs):
-    """Generator for random reach avoid dfas.
-
-    - n_tokens: Alphabet size.
-    - max_mutations: The maximum number of states of the DFA.
-    - kwargs: See `gen_reach_avoid`.
-    """
-    dfas = gen_reach_avoid(n_tokens, **kwargs)
-    while True:
-        candidate = next(dfas)
-        for _ in range(random.randint(0, max_mutations)):
-            tmp =  accepting_is_sink(change_transition(candidate))
+    def _sample(self):
+        candidate = self.reach_avoid_sampler.sample()
+        for _ in range(random.randint(0, self.max_mutations)):
+            tmp = self._accepting_is_sink(change_transition(candidate))
             if tmp is None: continue
             tmp = tmp.minimize()
             if len(tmp.states()) == 1: continue
             candidate = tmp.minimize()
-        yield candidate
+        return candidate
 
