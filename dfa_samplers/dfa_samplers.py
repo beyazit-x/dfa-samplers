@@ -1,15 +1,20 @@
 import math
-import random
+import numpy as np
 from dfa import dict2dfa, DFA
 from dfa_mutate import change_transition
 
 __all__ = ["DFASampler", "ReachSampler", "ReachAvoidSampler", "RADSampler"]
 
 class DFASampler():
-    def __init__(self, n_tokens=10, max_size=6):
-        assert n_tokens > 1 and max_size > 1
+    def __init__(self, n_tokens=10, max_size=10):
+        assert n_tokens > 1 and max_size >= 2
         self.n_tokens = n_tokens
         self.max_size = max_size
+
+        self.p = 0.5
+        self.n_values = np.array(list(range(1, self.max_size - 2 + 1)))
+        self.n_p = np.array([(self.p)**v for v in self.n_values])
+        self.n_p = self.n_p / np.sum(self.n_p)
 
     def sample(self):
         dfa = self._sample()
@@ -19,6 +24,9 @@ class DFASampler():
 
     def _sample(self):
         raise NotImplemented
+
+    def sample_n(self):
+        return 2 + np.random.choice(self.n_values, p=self.n_p)
 
     def get_size_bound(self):
         Q = self.max_size
@@ -39,17 +47,17 @@ class ReachSampler(DFASampler):
 
     def _sample(self):
         tokens = list(range(self.n_tokens))
-        n = random.randint(3, self.max_size)
+        n = self.sample_n()
         success = n - 1
         transitions = {
           success: (True,  {t: success for t in range(self.n_tokens)})
         }
         for state in range(n - 1):
             noop, good = (set(), set())
-            random.shuffle(tokens)
+            np.random.shuffle(tokens)
             good.add(tokens[0])
             for token in tokens[1:]:
-                if random.random() <= self.prob_stutter:
+                if np.random.random() <= self.prob_stutter:
                     noop.add(token)
                 else:
                     good.add(token)
@@ -70,7 +78,7 @@ class ReachAvoidSampler(DFASampler):
 
     def _sample(self):
         tokens = list(range(self.n_tokens))
-        n = random.randint(3, self.max_size)
+        n = self.sample_n()
         success, fail = n - 2, n - 1
         transitions = {
           success: (True,  {t: success for t in range(self.n_tokens)}),
@@ -78,14 +86,14 @@ class ReachAvoidSampler(DFASampler):
         }
         for state in range(n - 2):
             noop, good, bad = partition = (set(), set(), set())
-            random.shuffle(tokens)
+            np.random.shuffle(tokens)
             good.add(tokens[0])
             bad.add(tokens[1])
             for token in tokens[2:]:
-                if random.random() <= self.prob_stutter:
+                if np.random.random() <= self.prob_stutter:
                     noop.add(token)
                 else:
-                    partition[random.randint(1, 2)].add(token)
+                    partition[np.random.choice([1, 2])].add(token)
             _transitions = dict()
             for token in good:
                 _transitions[token] = state + 1
@@ -115,7 +123,7 @@ class RADSampler(DFASampler):
 
     def _sample(self):
         candidate = self.reach_avoid_sampler.sample()
-        for _ in range(random.randint(0, self.max_mutations)):
+        for _ in range(np.random.choice(self.max_mutations + 1)):
             tmp = self._accepting_is_sink(change_transition(candidate))
             if tmp is None: continue
             tmp = tmp.minimize()

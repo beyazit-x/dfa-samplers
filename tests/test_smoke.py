@@ -1,8 +1,11 @@
-from dfa_samplers import gen_reach, gen_reach_avoid, gen_rad
+from dfa_samplers import RADSampler, ReachSampler, ReachAvoidSampler
 
 
 def test_non_empty():
+    rad_sampler = RADSampler()
+    reach_sampler = ReachSampler()
+    reach_avoid_sampler = ReachAvoidSampler()
     for _ in range(100):
-        assert next(gen_reach()).find_word() is not None
-        assert next(gen_reach_avoid()).find_word() is not None
-        assert next(gen_rad()).find_word() is not None
+        assert rad_sampler.sample().find_word() is not None
+        assert reach_sampler.sample().find_word() is not None
+        assert reach_avoid_sampler.sample().find_word() is not None
