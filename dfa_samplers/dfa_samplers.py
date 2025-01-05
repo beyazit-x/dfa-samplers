@@ -6,15 +6,16 @@ from dfa_mutate import change_transition
 __all__ = ["DFASampler", "ReachSampler", "ReachAvoidSampler", "RADSampler"]
 
 class DFASampler():
-    def __init__(self, n_tokens=10, max_size=10):
+    def __init__(self, n_tokens=10, max_size=6, p=None):
         assert n_tokens > 1 and max_size >= 2
         self.n_tokens = n_tokens
         self.max_size = max_size
+        self.p = p
 
-        self.p = 0.5
         self.n_values = np.array(list(range(1, self.max_size - 2 + 1)))
-        self.n_p = np.array([(self.p)**v for v in self.n_values])
-        self.n_p = self.n_p / np.sum(self.n_p)
+        if self.p is not None:
+            self.n_p = np.array([(self.p)**v for v in self.n_values])
+            self.n_p = self.n_p / np.sum(self.n_p)
 
     def sample(self):
         dfa = self._sample()
@@ -26,7 +27,9 @@ class DFASampler():
         raise NotImplemented
 
     def sample_n(self):
-        return 2 + np.random.choice(self.n_values, p=self.n_p)
+        if self.p is not None:
+            return 2 + np.random.choice(self.n_values, p=self.n_p)
+        return 2 + np.random.choice(self.n_values)
 
     def get_size_bound(self):
         Q = self.max_size
@@ -105,11 +108,11 @@ class ReachAvoidSampler(DFASampler):
         return dict2dfa(transitions, start=0).minimize()
 
 class RADSampler(DFASampler):
-    def __init__(self, max_mutations=5, **kwargs):
+    def __init__(self, max_mutations=5, p=0.5, **kwargs):
         super().__init__(**kwargs)
         assert max_mutations >= 0
         self.max_mutations = max_mutations
-        self.reach_avoid_sampler = ReachAvoidSampler(**kwargs)
+        self.reach_avoid_sampler = ReachAvoidSampler(p, **kwargs)
 
     def _accepting_is_sink(self, d):
         def transition(s, c):
