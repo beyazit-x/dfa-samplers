@@ -1,7 +1,6 @@
 from dfa_samplers import RADSampler, ReachSampler, ReachAvoidSampler
 
-
-def test_non_empty():
+if __name__ == "__main__":
     rad_sampler = RADSampler()
     reach_sampler = ReachSampler()
     reach_avoid_sampler = ReachAvoidSampler()
